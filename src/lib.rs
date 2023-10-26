@@ -30,8 +30,8 @@
 //! - The Apple symbol: Apple uses U+F8FF, a character in the Corporate Private
 //!   Use Area, to represent its logo in text. We comply with this usage.
 //! - Unsupported characters: If the crate encounters a Unicode code sequence
-//!   for which it can't find a MacRoman-encodable prefix, it will yield a
-//!   `None`, step by one code point, and try again.
+//!   for which it can't find a MacRoman-encodable prefix, it will yield an
+//!   `Err(codepoint)`, step by one code point, and try again.
 //!
 //! # Legalese
 //!
@@ -369,8 +369,8 @@ struct MacRomanEncoder<'a> {
 }
 
 impl Iterator for MacRomanEncoder<'_> {
-    type Item = Option<u8>;
-    fn next(&mut self) -> Option<Option<u8>> {
+    type Item = Result<u8, char>;
+    fn next(&mut self) -> Option<Result<u8, char>> {
         if self.rem.is_empty() {
             None
         } else {
@@ -384,15 +384,16 @@ impl Iterator for MacRomanEncoder<'_> {
                 let (sequence, code) = KNOWN_SEQUENCES[best];
                 if let Some(rest) = self.rem.strip_prefix(sequence) {
                     self.rem = rest;
-                    return Some(Some(code));
+                    return Some(Ok(code));
                 }
             }
+            let codepoint = self.rem.chars().next().unwrap();
             self.rem = self.rem.strip_prefix(|_| true).unwrap();
-            Some(None)
+            Some(Err(codepoint))
         }
     }
 }
 
-pub fn encode(input: &str) -> impl '_ + Iterator<Item = Option<u8>> {
+pub fn encode(input: &str) -> impl '_ + Iterator<Item = Result<u8, char>> {
     MacRomanEncoder { rem: input }
 }
