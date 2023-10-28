@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 //! # What
 //!
@@ -365,15 +365,17 @@ static KNOWN_SEQUENCES: &[(&str, u8)] = &[
 ];
 
 struct MacRomanEncoder<'a> {
+    pos: usize,
     rem: &'a str,
 }
 
 impl Iterator for MacRomanEncoder<'_> {
-    type Item = Result<u8, char>;
-    fn next(&mut self) -> Option<Result<u8, char>> {
+    type Item = (usize, usize, Result<u8, char>);
+    fn next(&mut self) -> Option<(usize, usize, Result<u8, char>)> {
         if self.rem.is_empty() {
             None
         } else {
+            let pos = self.pos;
             let best = match KNOWN_SEQUENCES
                 .binary_search_by(|(prefix, _)| prefix.cmp(&self.rem))
             {
@@ -384,16 +386,55 @@ impl Iterator for MacRomanEncoder<'_> {
                 let (sequence, code) = KNOWN_SEQUENCES[best];
                 if let Some(rest) = self.rem.strip_prefix(sequence) {
                     self.rem = rest;
-                    return Some(Ok(code));
+                    self.pos += sequence.len();
+                    return Some((pos, sequence.len(), Ok(code)));
                 }
             }
             let codepoint = self.rem.chars().next().unwrap();
-            self.rem = self.rem.strip_prefix(|_| true).unwrap();
-            Some(Err(codepoint))
+            let len = self
+                .rem
+                .char_indices()
+                .nth(1)
+                .map(|(i, _)| i)
+                .unwrap_or(self.rem.len());
+            self.rem = &self.rem[len..];
+            self.pos += len;
+            Some((pos, len, Err(codepoint)))
         }
     }
 }
 
-pub fn encode(input: &str) -> impl '_ + Iterator<Item = Result<u8, char>> {
-    MacRomanEncoder { rem: input }
+pub fn encode(
+    input: &str,
+) -> impl '_ + Iterator<Item = (usize, usize, Result<u8, char>)> {
+    MacRomanEncoder { pos: 0, rem: input }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn quebecois_glass() {
+        const SRC: &str = "J'peux manger d'la vitre, ça m'fa pas mal.";
+        const DST: &[u8] = b"J'peux manger d'la vitre, \x8Da m'fa pas mal.";
+        assert_eq!(
+            encode(SRC)
+                .map(|(_pos, _len, c)| c)
+                .collect::<Result<Vec<u8>, char>>()
+                .unwrap(),
+            DST
+        )
+    }
+    #[test]
+    fn norse_glass() {
+        const SRC: &str = "Ek get etið gler án þess að verða sár.";
+        const DST: &[u8] = b"Ek get eti@ gler \x87n @ess a@ ver@a s\x87r.";
+        assert_eq!(
+            encode(SRC)
+                .map(|(_pos, _len, c)| c)
+                .map(|x| x.unwrap_or(b'@'))
+                .collect::<Vec<u8>>(),
+            DST
+        )
+    }
 }
