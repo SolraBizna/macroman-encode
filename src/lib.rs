@@ -404,6 +404,12 @@ impl Iterator for MacRomanEncoder<'_> {
     }
 }
 
+/// Provide UTF-8 text. Will return an iterator over tuples of three values:
+/// - Position of start of code sequence that produced this result
+/// - Number of bytes in code sequence that produced this result
+/// - `Ok(mac_roman)` if this code sequence corresponds to a MacRoman
+///   character, or `Err(unicode)` if no MacRoman character starts with this
+///   Unicode code point.
 pub fn encode(
     input: &str,
 ) -> impl '_ + Iterator<Item = (usize, usize, Result<u8, char>)> {
