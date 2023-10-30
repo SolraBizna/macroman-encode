@@ -376,7 +376,7 @@ impl Iterator for MacRomanEncoder<'_> {
             None
         } else {
             let pos = self.pos;
-            let best = match KNOWN_SEQUENCES
+            let mut best = match KNOWN_SEQUENCES
                 .binary_search_by(|(prefix, _)| prefix.cmp(&self.rem))
             {
                 Ok(x) => x,
@@ -388,6 +388,23 @@ impl Iterator for MacRomanEncoder<'_> {
                     self.rem = rest;
                     self.pos += sequence.len();
                     return Some((pos, sequence.len(), Ok(code)));
+                } else if sequence.len() > 1 && best > 0 {
+                    // Try shorter sequences until the first byte is wrong
+                    best -= 1;
+                    while KNOWN_SEQUENCES[best].0.as_bytes()[0]
+                        == self.rem.as_bytes()[0]
+                    {
+                        let (sequence, code) = KNOWN_SEQUENCES[best];
+                        if let Some(rest) = self.rem.strip_prefix(sequence) {
+                            self.rem = rest;
+                            self.pos += sequence.len();
+                            return Some((pos, sequence.len(), Ok(code)));
+                        } else if best == 0 {
+                            break;
+                        } else {
+                            best -= 1;
+                        }
+                    }
                 }
             }
             let codepoint = self.rem.chars().next().unwrap();
