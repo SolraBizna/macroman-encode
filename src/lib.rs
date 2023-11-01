@@ -460,4 +460,16 @@ mod test {
             DST
         )
     }
+    #[test]
+    fn overshoot() {
+        const SRC: &str = "I can e—okay, that's not true, glass hurts!";
+        const DST: &[u8] = b"I can e\xd1okay, that's not true, glass hurts!";
+        assert_eq!(
+            encode(SRC)
+                .map(|(_pos, _len, c)| c)
+                .collect::<Result<Vec<u8>, char>>()
+                .unwrap(),
+            DST
+        )
+    }
 }
